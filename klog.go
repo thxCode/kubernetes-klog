@@ -862,6 +862,9 @@ func (rb *redirectBuffer) Write(bytes []byte) (n int, err error) {
 // Use as:
 //   ...
 //   klog.SetLogger(zapr.NewLogger(zapLog))
+//
+// To remove a backing logr implemention, use ClearLogger. Setting an
+// empty logger with SetLogger(logr.Logger{}) does not work.
 func SetLogger(logr logr.Logger) {
 	logging.mu.Lock()
 	defer logging.mu.Unlock()
@@ -869,7 +872,9 @@ func SetLogger(logr logr.Logger) {
 	logging.logr = &logr
 }
 
-func clearLogger() {
+// ClearLogger removes a backing logr implementation if one was set earlier
+// with SetLogger.
+func ClearLogger() {
 	logging.mu.Lock()
 	defer logging.mu.Unlock()
 
