@@ -1377,7 +1377,7 @@ func TestInfoSWithLogr(t *testing.T) {
 		t.Run(data.msg, func(t *testing.T) {
 			l := logr.New(logger)
 			SetLogger(l)
-			defer clearLogger()
+			defer ClearLogger()
 			defer logger.reset()
 
 			InfoS(data.msg, data.keysValues...)
@@ -1445,7 +1445,7 @@ func TestErrorSWithLogr(t *testing.T) {
 		t.Run(data.msg, func(t *testing.T) {
 			l := logr.New(logger)
 			SetLogger(l)
-			defer clearLogger()
+			defer ClearLogger()
 			defer logger.reset()
 
 			ErrorS(data.err, data.msg, data.keysValues...)
@@ -1503,7 +1503,7 @@ func TestCallDepthLogr(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			l := logr.New(logger)
 			SetLogger(l)
-			defer clearLogger()
+			defer ClearLogger()
 			defer logger.reset()
 			defer logger.resetCallDepth()
 
