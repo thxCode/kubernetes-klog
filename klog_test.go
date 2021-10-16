@@ -589,26 +589,26 @@ func TestFileSizeCheck(t *testing.T) {
 		"logFile not specified, exceeds max size": {
 			testLogFile:          "",
 			testLogFileMaxSizeMB: 1,
-			testCurrentSize:      1024 * 1024 * 2000, //exceeds the maxSize
+			testCurrentSize:      1024 * 1024 * 2000, // exceeds the maxSize
 			expectedResult:       true,
 		},
 
 		"logFile not specified, not exceeds max size": {
 			testLogFile:          "",
 			testLogFileMaxSizeMB: 1,
-			testCurrentSize:      1024 * 1024 * 1000, //smaller than the maxSize
+			testCurrentSize:      1024 * 1024 * 1000, // smaller than the maxSize
 			expectedResult:       false,
 		},
 		"logFile specified, exceeds max size": {
 			testLogFile:          "/tmp/test.log",
 			testLogFileMaxSizeMB: 500,                // 500MB
-			testCurrentSize:      1024 * 1024 * 1000, //exceeds the logFileMaxSizeMB
+			testCurrentSize:      1024 * 1024 * 1000, // exceeds the logFileMaxSizeMB
 			expectedResult:       true,
 		},
 		"logFile specified, not exceeds max size": {
 			testLogFile:          "/tmp/test.log",
 			testLogFileMaxSizeMB: 500,               // 500MB
-			testCurrentSize:      1024 * 1024 * 300, //smaller than the logFileMaxSizeMB
+			testCurrentSize:      1024 * 1024 * 300, // smaller than the logFileMaxSizeMB
 			expectedResult:       false,
 		},
 	}
@@ -637,5 +637,34 @@ func TestInitFlags(t *testing.T) {
 	fs2.Set("log_file_max_size", "2048")
 	if logging.logFileMaxSizeMB != 2048 {
 		t.Fatal("Expected log_file_max_size to be 2048")
+	}
+}
+
+func TestWithBriefHeaders(t *testing.T) {
+	setFlags()
+	logging.withBriefHeaders = true
+
+	file := "long_name_fxxxxxxxxx.go"
+	line := 99
+	buf := logging.formatHeader(infoLog, file, line)
+	expectedSuffix := "long_n..xxxxxxx:0099] "
+	if actual := buf.String(); !strings.HasSuffix(actual, expectedSuffix) {
+		t.Fatalf("Expected brief headers to have %q suffix, got %q", expectedSuffix, actual)
+	}
+
+	file = "middle_name_fxx.go"
+	line = 999
+	buf = logging.formatHeader(warningLog, file, line)
+	expectedSuffix = "middle_name_fxx:0999] "
+	if actual := buf.String(); !strings.HasSuffix(actual, expectedSuffix) {
+		t.Fatalf("Expected brief headers to have %q suffix, got %q", expectedSuffix, actual)
+	}
+
+	file = "short_name_f.go"
+	line = 9999
+	buf = logging.formatHeader(errorLog, file, line)
+	expectedSuffix = "short_name_f:9999] "
+	if actual := buf.String(); !strings.HasSuffix(actual, expectedSuffix) {
+		t.Fatalf("Expected brief headers to have %q suffix, got %q", expectedSuffix, actual)
 	}
 }
