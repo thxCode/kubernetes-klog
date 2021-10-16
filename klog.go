@@ -414,6 +414,7 @@ func init() {
 	logging.toStderr = true
 	logging.alsoToStderr = false
 	logging.skipHeaders = false
+	logging.withBriefHeaders = false
 	logging.addDirHeader = false
 	logging.skipLogHeaders = false
 	logging.oneOutput = false
@@ -436,6 +437,7 @@ func InitFlags(flagset *flag.FlagSet) {
 	flagset.Var(&logging.verbosity, "v", "number for the log level verbosity")
 	flagset.BoolVar(&logging.addDirHeader, "add_dir_header", logging.addDirHeader, "If true, adds the file directory to the header of the log messages")
 	flagset.BoolVar(&logging.skipHeaders, "skip_headers", logging.skipHeaders, "If true, avoid header prefixes in the log messages")
+	flagset.BoolVar(&logging.withBriefHeaders, "with_brief_headers", logging.withBriefHeaders, "If true, use the brief prefix headers")
 	flagset.BoolVar(&logging.oneOutput, "one_output", logging.oneOutput, "If true, only write logs to their native severity level (vs also writing to each lower severity level)")
 	flagset.BoolVar(&logging.skipLogHeaders, "skip_log_headers", logging.skipLogHeaders, "If true, avoid headers when opening log files")
 	flagset.Var(&logging.stderrThreshold, "stderrthreshold", "logs at or above this threshold go to stderr")
@@ -501,6 +503,9 @@ type loggingT struct {
 
 	// If true, do not add the prefix headers, useful when used with SetOutput
 	skipHeaders bool
+
+	// If true, use the brief prefix headers
+	withBriefHeaders bool
 
 	// If true, do not add the headers to log files
 	skipLogHeaders bool
@@ -589,8 +594,8 @@ where the fields are defined as follows:
 	L                A single character, representing the log level (eg 'I' for INFO)
 	mm               The month (zero padded; ie May is '05')
 	dd               The day (zero padded)
-	hh:mm:ss.uuuuuu  Time in hours, minutes and fractional seconds
-	threadid         The space-padded thread ID as returned by GetTID()
+	hh:mm:ss.uuuuuu  Time in hours, minutes and fractional seconds, 'uuuuuu' ignores in brief mode.
+	threadid         The space-padded thread ID as returned by GetTID(), ignores in brief mode.
 	file             The file name
 	line             The line number
 	msg              The user-supplied message
@@ -604,7 +609,7 @@ func (l *loggingT) header(s severity, depth int) (*buffer, string, int) {
 		if slash := strings.LastIndex(file, "/"); slash >= 0 {
 			path := file
 			file = path[slash+1:]
-			if l.addDirHeader {
+			if l.addDirHeader && !l.withBriefHeaders {
 				if dirsep := strings.LastIndex(path[:slash], "/"); dirsep >= 0 {
 					file = path[dirsep+1:]
 				}
@@ -632,6 +637,28 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 	// It's worth about 3X. Fprintf is hard.
 	_, month, day := now.Date()
 	hour, minute, second := now.Clock()
+	if l.withBriefHeaders {
+		// Lmmdd hh:mm:ss file:line]
+		buf.tmp[0] = severityChar[s]
+		buf.twoDigits(1, int(month))
+		buf.twoDigits(3, day)
+		buf.tmp[5] = ' '
+		buf.twoDigits(6, hour)
+		buf.tmp[8] = ':'
+		buf.twoDigits(9, minute)
+		buf.tmp[11] = ':'
+		buf.twoDigits(12, second)
+		buf.tmp[14] = ' '
+		buf.Write(buf.tmp[:15])
+		buf.nChars(15, 0, []byte(file[:len(file)-3]), ' ')
+		buf.Write(buf.tmp[:15])
+		buf.tmp[0] = ':'
+		buf.nDigits(4, 1, line, '0')
+		buf.tmp[5] = ']'
+		buf.tmp[6] = ' '
+		buf.Write(buf.tmp[:7])
+		return buf
+	}
 	// Lmmdd hh:mm:ss.uuuuuu threadid file:line]
 	buf.tmp[0] = severityChar[s]
 	buf.twoDigits(1, int(month))
@@ -659,7 +686,10 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 
 // Some custom tiny helper functions to print the log header efficiently.
 
-const digits = "0123456789"
+const (
+	digits   = "0123456789"
+	ellipsis = ".."
+)
 
 // twoDigits formats a zero-prefixed two-digit integer at buf.tmp[i].
 func (buf *buffer) twoDigits(i, d int) {
@@ -696,6 +726,25 @@ func (buf *buffer) someDigits(i, d int) int {
 		}
 	}
 	return copy(buf.tmp[i:], buf.tmp[j:])
+}
+
+// nCharts formats an n-digit chars at buf.tmp[i],
+// padding with pad on the left.
+// It assumes n > 3.
+func (buf *buffer) nChars(n, i int, bs []byte, pad byte) {
+	j := len(bs)
+	if j <= n {
+		l := i + n - j
+		for ; i < l; i++ {
+			buf.tmp[i] = pad
+		}
+		_ = copy(buf.tmp[i:], bs[:])
+		return
+	}
+	m := (n - len(ellipsis)) / 2
+	i += copy(buf.tmp[i:], bs[:m])
+	i += copy(buf.tmp[i:], ellipsis)
+	_ = copy(buf.tmp[i:], bs[j-m-1:])
 }
 
 func (l *loggingT) println(s severity, logger *logr.Logger, filter LogFilter, args ...interface{}) {
